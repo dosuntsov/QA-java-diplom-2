@@ -13,7 +13,6 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class TestInvalidLoginParametrized {
 
-
     String token;
     String email;
     String password;
