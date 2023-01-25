@@ -1,0 +1,7 @@
+TestUserPatch.class
+TestUserCreation.class
+TestUserCreationWithNullsParametrized.class
+TestClassGetOrders.class
+TestInvalidLoginParametrized.class
+TestClassCreatingOrders.class
+TestUserLogin.class

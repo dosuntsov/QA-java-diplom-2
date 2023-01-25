@@ -1,47 +1,32 @@
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import user.UserClient;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class TestUserPatch {
+    private static final String BASE_URI = "https://stellarburgers.nomoreparties.site";
+    String email = (RandomStringUtils.randomAlphabetic(10) + "@mail.ru").toLowerCase();
+    String password = RandomStringUtils.randomAlphabetic(10);
+    String name = RandomStringUtils.randomAlphabetic(10);
 
-    String token;
-    String token2;
-    String email = "mugiwara@op.com";
-    String password = "kingofpirates";
-    String name = "Monkey D. Luffy";
-
-    User user = new User(email, password, name);
+    UserClient user = new UserClient(email, password, name);
+    UserClient userSameEmail;
 
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://stellarburgers.nomoreparties.site";
-        createAUser(user);
+        RestAssured.baseURI = BASE_URI;
+        createAUser();
     }
 
-    public Response getPatchResponse(User user) {
-        return given()
-                .header("Content-type", "application/json")
-                .header("Authorization", token)
-                .body(user)
-                .patch("/api/auth/user");
-    }
-
-    public Response getRegisterResponse(User user) {
-        return given()
-                .header("Content-type", "application/json")
-                .body(user)
-                .post("/api/auth/register");
-    }
-
-    public void createAUser(User user) {
-        Response response = getRegisterResponse(user);
-        token = response
+    public void createAUser() {
+        Response response = user.getRegisterResponse();
+        String token = response
                 .then()
                 .assertThat()
                 .statusCode(200)
@@ -53,12 +38,12 @@ public class TestUserPatch {
                 .body("refreshToken", notNullValue())
                 .extract()
                 .path("accessToken");
+        user.setToken(token);
     }
 
     @Test
     public void verifyChangingPassword() {
-        User user1 = new User(email, "newPassword", name);
-        Response response = getPatchResponse(user1);
+        Response response = user.getPatchResponse(email, "newPassword", name);
         response
                 .then()
                 .assertThat()
@@ -73,8 +58,7 @@ public class TestUserPatch {
 
     @Test
     public void verifyChangingName() {
-        User user2 = new User(email, password, "newName");
-        Response response = getPatchResponse(user2);
+        Response response = user.getPatchResponse(email, password, "newName");
         response
                 .then()
                 .assertThat()
@@ -89,12 +73,8 @@ public class TestUserPatch {
 
     @Test
     public void verifyChangingNewEmail() {
-        User user1 = new User("newemail", password, name);
-        given()
-                .header("Content-type", "application/json")
-                .header("Authorization", token)
-                .body(user1)
-                .patch("/api/auth/user")
+        Response response = user.getPatchResponse("newemail", password, name);
+        response
                 .then()
                 .assertThat()
                 .statusCode(200)
@@ -108,9 +88,10 @@ public class TestUserPatch {
 
     @Test
     public void verifyChangingToExistingEmailFails() {
-        User userSameEmail = new User("test2@mail.com", "newPassword", "newName");
-        Response response = getRegisterResponse(userSameEmail);
-        token2 = response
+        String email = "test2@mail.com";
+        userSameEmail = new UserClient(email, "newPassword", "newName");
+        Response response = userSameEmail.getRegisterResponse();
+        String token2 = response
                 .then()
                 .assertThat()
                 .statusCode(200)
@@ -122,9 +103,9 @@ public class TestUserPatch {
                 .body("refreshToken", notNullValue())
                 .extract()
                 .path("accessToken");
+        userSameEmail.setToken(token2);
 
-        User userSameEmailPatch = new User("test2@mail.com", password, name);
-        Response response2 = getPatchResponse(userSameEmailPatch);
+        Response response2 = user.getPatchResponse(email, password, name);
         response2
                 .then()
                 .statusCode(403)
@@ -135,39 +116,22 @@ public class TestUserPatch {
 
     @Test
     public void verifyUnauthorizedUserCannotPatch() {
-        given()
-                .header("Content-type", "application/json")
-                .body(user)
-                .patch("/api/auth/user")
+        String token = user.getToken();
+        user.setToken(null);
+        Response response = user.getPatchResponse(email, password, name);
+        response
                 .then()
                 .statusCode(401)
                 .and().body("success", equalTo(false))
                 .and().body("message", equalTo("You should be authorised"));
+        user.setToken(token);
     }
 
     @After
     public void deleteUserAfterTest() {
-        given()
-                .header("Authorization", token)
-                .delete("/api/auth/user")
-                .then()
-                .assertThat()
-                .statusCode(202)
-                .and()
-                .body("success", equalTo(true))
-                .and()
-                .body("message", equalTo("User successfully removed"));
-        if (token2 != null) {
-            given()
-                    .header("Authorization", token2)
-                    .delete("/api/auth/user")
-                    .then()
-                    .assertThat()
-                    .statusCode(202)
-                    .and()
-                    .body("success", equalTo(true))
-                    .and()
-                    .body("message", equalTo("User successfully removed"));
+        user.deleteUser();
+        if (userSameEmail != null) {
+            userSameEmail.deleteUser();
         }
     }
 }

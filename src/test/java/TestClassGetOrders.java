@@ -1,7 +1,11 @@
 import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import order.OrderClient;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import user.UserClient;
 
 import java.util.Arrays;
 import java.util.List;
@@ -11,23 +15,24 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class TestClassGetOrders {
-    String token;
-    User user = new User("mugiwara@op.com", "kingofpirates", "Monkey D. Luffy");
+    private static final String BASE_URI = "https://stellarburgers.nomoreparties.site";
+    String email = (RandomStringUtils.randomAlphabetic(10) + "@mail.ru").toLowerCase();
+    String password = RandomStringUtils.randomAlphabetic(10);
+    String name = RandomStringUtils.randomAlphabetic(10);
+    UserClient user = new UserClient(email, password, name);
     List<String> list = Arrays.asList("61c0c5a71d1f82001bdaaa75", "61c0c5a71d1f82001bdaaa71", "61c0c5a71d1f82001bdaaa6d");
-    Ingredients ingredients = new Ingredients(list);
+    OrderClient order = new OrderClient(list);
 
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://stellarburgers.nomoreparties.site";
+        RestAssured.baseURI = BASE_URI;
         createAUser();
         createAnOrder();
     }
 
     public void createAUser() {
-        token = given()
-                .header("Content-type", "application/json")
-                .body(user)
-                .post("/api/auth/register")
+        Response response = user.getRegisterResponse();
+        String token = response
                 .then()
                 .assertThat()
                 .statusCode(200)
@@ -39,14 +44,13 @@ public class TestClassGetOrders {
                 .body("refreshToken", notNullValue())
                 .extract()
                 .path("accessToken");
+        user.setToken(token);
+        order.setToken(token);
     }
 
     public void createAnOrder() {
-        given()
-                .header("Content-type", "application/json")
-                .header("Authorization", token)
-                .body(ingredients)
-                .post("/api/orders")
+        Response response = order.getResponseCreateAnOrder();
+        response
                 .then()
                 .statusCode(200)
                 .and()
@@ -57,9 +61,9 @@ public class TestClassGetOrders {
 
     @Test
     public void verifyUnauthorisedUserDoesntGetOrderList() {
-        given()
-                .header("Content-type", "application/json")
-                .get("/api/orders")
+        order.setToken(null);
+        Response response = order.getResponseAnOrder();
+        response
                 .then()
                 .statusCode(401)
                 .and()
@@ -70,10 +74,8 @@ public class TestClassGetOrders {
 
     @Test
     public void verifyThatAuthorisedUserGetsOrderList() {
-        given()
-                .header("Content-type", "application/json")
-                .header("Authorization", token)
-                .get("/api/orders")
+        Response response = order.getResponseAnOrder();
+        response
                 .then()
                 .statusCode(200)
                 .and().body("success", equalTo(true))
@@ -90,17 +92,7 @@ public class TestClassGetOrders {
 
     @After
     public void deleteUserAfterTest() {
-        given()
-                .header("Authorization", token)
-                .delete("/api/auth/user")
-                .then()
-                .assertThat()
-                .statusCode(202)
-                .and()
-                .body("success", equalTo(true))
-                .and()
-                .body("message", equalTo("User successfully removed"));
+       user.deleteUser();
     }
-
 
 }

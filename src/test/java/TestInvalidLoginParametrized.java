@@ -1,9 +1,12 @@
 import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import user.UserClient;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -12,13 +15,12 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 @RunWith(Parameterized.class)
 
 public class TestInvalidLoginParametrized {
+    private static final String BASE_URI = "https://stellarburgers.nomoreparties.site";
+    String email = (RandomStringUtils.randomAlphabetic(10) + "@mail.ru").toLowerCase();
+    String password = RandomStringUtils.randomAlphabetic(10);
+    String name = RandomStringUtils.randomAlphabetic(10);
 
-    String token;
-    String email;
-    String password;
-    String name = "Monkey D. Luffy";
-
-    User user = new User("mugiwara@op.com", "kingofpirates", name);
+    UserClient user = new UserClient(email, password, name);
 
     public TestInvalidLoginParametrized(String email, String password) {
         this.email = email;
@@ -38,15 +40,13 @@ public class TestInvalidLoginParametrized {
 
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://stellarburgers.nomoreparties.site";
+        RestAssured.baseURI = BASE_URI;
         createAUser();
     }
 
     public void createAUser() {
-        token = given()
-                .header("Content-type", "application/json")
-                .body(user)
-                .post("/api/auth/register")
+        Response response = user.getRegisterResponse();
+        String token = response
                 .then()
                 .assertThat()
                 .statusCode(200)
@@ -58,15 +58,14 @@ public class TestInvalidLoginParametrized {
                 .body("refreshToken", notNullValue())
                 .extract()
                 .path("accessToken");
+        user.setToken(token);
     }
 
     @Test
     public void checkIfInvalidPasswordOrEmailBlockAuth() {
-        User user = new User(email, password, name);
-        given()
-                .header("Content-type", "application/json")
-                .body(user)
-                .post("/api/auth/login")
+        UserClient userWithInvalidParameters = new UserClient(email, password, name);
+        Response response = userWithInvalidParameters.getLoginResponse();
+        response
                 .then()
                 .assertThat()
                 .statusCode(401)
@@ -77,16 +76,7 @@ public class TestInvalidLoginParametrized {
 
     @After
     public void deleteUserAfterCreation() {
-        given()
-                .header("Authorization", token)
-                .delete("/api/auth/user")
-                .then()
-                .assertThat()
-                .statusCode(202)
-                .and()
-                .body("success", equalTo(true))
-                .and()
-                .body("message", equalTo("User successfully removed"));
+        user.deleteUser();
     }
 
 }

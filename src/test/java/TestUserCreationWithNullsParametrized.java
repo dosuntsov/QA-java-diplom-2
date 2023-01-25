@@ -1,19 +1,23 @@
 import io.restassured.RestAssured;
+import io.restassured.response.Response;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import user.UserClient;
 
-import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @RunWith(Parameterized.class)
 
 public class TestUserCreationWithNullsParametrized {
-    private User user;
+
+    private static final String BASE_URI = "https://stellarburgers.nomoreparties.site";
+    UserClient user;
 
     public TestUserCreationWithNullsParametrized(String email, String password, String name){
-        this.user = new User(email, password, name);
+        this.user = new UserClient(email, password, name);
     }
 
     @Parameterized.Parameters
@@ -27,21 +31,28 @@ public class TestUserCreationWithNullsParametrized {
 
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://stellarburgers.nomoreparties.site";
+        RestAssured.baseURI = BASE_URI;
     }
 
     @Test
     public void checkIfRegistrationFailsWithNullParams(){
-        given()
-                .header("Content-type", "application/json")
-                .body(user)
-                .post("/api/auth/register")
+        Response response = user.getRegisterResponse();
+        String token = response
                 .then()
                 .assertThat()
                 .statusCode(403)
                 .and()
                 .body("success", equalTo(false))
                 .and()
-                .body("message", equalTo("Email, password and name are required fields"));
+                .body("message", equalTo("Email, password and name are required fields"))
+                .extract()
+                .path("accessToken");
+        user.setToken(token);
     }
+
+    @After
+    public void deleteUserAfterTest() {
+        user.deleteUser();
+    }
+
 }
